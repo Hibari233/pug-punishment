@@ -1,6 +1,5 @@
 #include <sourcemod>
 #include <pugsetup>
-#include <sdkhooks>
 #include <redirect_core>
 
 #define SERVER 0
@@ -15,14 +14,11 @@ int TimeDisconnet[MAXPLAYERS + 1];
 int Seconds[MAXPLAYERS + 1];
 int esptime[MAXPLAYERS + 1];
 int cbtime[MAXPLAYERS + 1];
-int LivePlayer[MAXPLAYERS + 1];
-int end[MAXPLAYERS + 1];
 
 bool showmenu[MAXPLAYERS + 1];
 bool IsMatchEnd;
 bool IsPlayer[MAXPLAYERS + 1];
 bool IsFristTime[MAXPLAYERS + 1];
-bool AskClient[MAXPLAYERS + 1];
 
 public Plugin myinfo =
 {
@@ -73,9 +69,6 @@ public Action Event_PlayerSpawn(Event event, char[] name, bool dontBroadcast)
 {
 	int iClient = GetClientOfUserId(event.GetInt("userid"));
 	
-	//if(AskClient[iClient])
-		//AskReconnectOrKick(iClient);
-	
 	CreateTimer(1.5,IsInGame,iClient);
 	if(!IsMatchEnd)
 	{
@@ -123,14 +116,13 @@ public void OnClientPostAdminCheck(int client)
 		KickClient(client, "Verification problem, Please reconnect");
 		return;
 	}
-	if(StrEqual(g_szAuth[client],"")||StrEqual(g_szAuth[client],"BOT"))
+	if(StrEqual(g_szAuth[client],"") || StrEqual(g_szAuth[client],"BOT"))
 		return;
 	showmenu[client] = true;
 	TimeDisconnet[client] = -1;
 	Seconds[client] = 60;
 	IsPlayer[client] = false;
 	IsFristTime[client] = true;
-	AskClient[client] = false;
 	
 	char szQuery[512];
 	FormatEx(szQuery, sizeof(szQuery), "SELECT * FROM `puguser` WHERE auth = '%s'",g_szAuth[client]);
@@ -143,9 +135,9 @@ public void OnClientPostAdminCheck(int client)
 
 public void SQL_FetchUser_CB(Database db, DBResultSet results, const char[] error, any data)
 {
+	
 	checkPlayerlive();
 	int iClient = GetClientFromSerial(data);
-	
 	if (results.FetchRow())
 	{
 		TimeDisconnet[iClient] = results.FetchInt(1);
@@ -164,7 +156,7 @@ public void SQL_FetchUserLog_CB(Database db, DBResultSet results, const char[] e
 		esptime[iClient] = results.FetchInt(1);
 		cbtime[iClient] = results.FetchInt(2);
 		if(esptime[iClient]>0)
-			PrintToAdmins("玩家 %N 目前累计逃跑%i次，累计返回 %i次",iClient,esptime[iClient],cbtime[iClient]);
+			PrintToAdmins("玩家 \x06%N\x01 目前累计逃跑\x08%i\x01次，累计返回 \x08%i\x01次",iClient,esptime[iClient],cbtime[iClient]);
 	}
 	else
 	{
@@ -205,14 +197,13 @@ public void SQL_FetchMatch_CB(Database db, DBResultSet results, const char[] err
 	int iClient = GetClientFromSerial(data);
 	if (results.FetchRow())
 	{
-		LivePlayer[iClient] = results.FetchInt(1);
-		end[iClient] = results.FetchInt(2);
+		int LivePlayer = results.FetchInt(1);
+		int end = results.FetchInt(2);
 		
-		if( end[iClient] == 1)
+		if( end == 1)
 			return;
-		if(LivePlayer[iClient] >= 10)
+		if(LivePlayer >= 10)
 			return
-		AskClient[iClient] = true;
 		AskReconnectOrKick(iClient);
 	}
 	else
@@ -270,7 +261,7 @@ AskReconnectOrKick(int client)
 	
 	int sec=Seconds[client]%60;
 	Menu menu = new Menu(Handler_mianMenu);
-	menu.SetTitle("选择时间[00:%i]\n\n玩家须知:",sec);
+	menu.SetTitle("选择时间[00:%i]\n玩家须知:",sec);
 	menu.AddItem("0","请不要抛弃你的队友",ITEMDRAW_DISABLED);
 	menu.AddItem("1","请不要在比赛未结束时离开游戏",ITEMDRAW_DISABLED);
 	char buffer[128];
@@ -320,10 +311,9 @@ public int Handler_mianMenu(Menu menu, MenuAction action, int client,int itemNum
 public OnClientDisconnect(int client)
 {
 	checkPlayerlive();
-	
 	if(!IsPlayer[client])
 		return;
-	PrintToChatAll("玩家\x08%N\x01 在比赛中途离开游戏, 在规定时间内若未返回将接受惩罚",client);
+	PrintToChatAll("玩家\x06%N\x01 \x03在比赛中途离开游戏, 在规定时间内若未返回将接受惩罚",client);
 	char szQuery[512];
 	FormatEx(szQuery, sizeof(szQuery), "INSERT INTO `puguser` (`auth`,`serverip`,`time`) VALUES ('%s','%s','%i')",g_szAuth[client],gThisServerIp,GetTime());
 	g_dDatabase.Query(SQL_CheckForErrors, szQuery);
