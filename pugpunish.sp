@@ -212,33 +212,42 @@ public void SQL_FetchMatch_CB(Database db, DBResultSet results, const char[] err
 
 public void PugSetup_OnLive()
 {
+	if(IsMatchEnd)
+		IsMatchEnd=!IsMatchEnd;
 	refreshzt();
 	char szQuery[512];
 	FormatEx(szQuery, sizeof(szQuery), "UPDATE `serverissue` SET  `isend`= '0' WHERE `ip` = '%s'",gThisServerIp);
 	g_dDatabase.Query(SQL_CheckForErrors, szQuery);
-	IsMatchEnd=false;
 	checkPlayerlive();
 }
 
 public void PugSetup_OnForceEnd(int client)
 {
-	char szQuery[512];
-	FormatEx(szQuery, sizeof(szQuery), "UPDATE `serverissue` SET `isend` = '1' WHERE `ip` = '%s'",gThisServerIp);
-	g_dDatabase.Query(SQL_CheckForErrors, szQuery);
-	FormatEx(szQuery, sizeof(szQuery), "DELETE FROM `puguser` WHERE `serverip` = '%s'",gThisServerIp );
-	g_dDatabase.Query(SQL_CheckForErrors, szQuery);
-	IsMatchEnd=true;
-	refreshzt();
-}
-
-public void PugSetup_OnMatchOver(bool hasDemo, const char[] demoFileName)
-{
+	if(!IsMatchEnd)
+		IsMatchEnd=!IsMatchEnd;
+	PrintToChatAll("*\x03当前比赛已经结束了!");
+	PrintToChatAll("*\x03当前比赛已经结束了!");
+	PrintToChatAll("*\x03当前比赛已经结束了!");
 	char szQuery[512];
 	FormatEx(szQuery, sizeof(szQuery), "UPDATE `serverissue` SET `isend` = '1' WHERE `ip` = '%s'",gThisServerIp);
 	g_dDatabase.Query(SQL_CheckForErrors, szQuery);
 	FormatEx(szQuery, sizeof(szQuery), "DELETE FROM `puguser` WHERE `serverip` = '%s'", gThisServerIp );
 	g_dDatabase.Query(SQL_CheckForErrors, szQuery);
-	IsMatchEnd=true;
+	refreshzt();
+}
+
+public void PugSetup_OnMatchOver(bool hasDemo, const char[] demoFileName)
+{
+	if(!IsMatchEnd)
+		IsMatchEnd=!IsMatchEnd;
+	PrintToChatAll("*\x03当前比赛已经结束了!");
+	PrintToChatAll("*\x03当前比赛已经结束了!");
+	PrintToChatAll("*\x03当前比赛已经结束了!");
+	char szQuery[512];
+	FormatEx(szQuery, sizeof(szQuery), "UPDATE `serverissue` SET `isend` = '1' WHERE `ip` = '%s'",gThisServerIp);
+	g_dDatabase.Query(SQL_CheckForErrors, szQuery);
+	FormatEx(szQuery, sizeof(szQuery), "DELETE FROM `puguser` WHERE `serverip` = '%s'", gThisServerIp );
+	g_dDatabase.Query(SQL_CheckForErrors, szQuery);
 	refreshzt();
 }
 
@@ -346,6 +355,22 @@ stock void PrintToAdmins(const char[] msg, any ...)
 	}
 }
 
+public OnMapEnd()
+{
+	if(!IsMatchEnd)
+		IsMatchEnd=!IsMatchEnd;
+	PrintToChatAll("*\x03当前比赛已经结束了!");
+	PrintToChatAll("*\x03当前比赛已经结束了!");
+	PrintToChatAll("*\x03当前比赛已经结束了!");
+	char szQuery[512];
+	FormatEx(szQuery, sizeof(szQuery), "UPDATE `serverissue` SET `isend` = '1' WHERE `ip` = '%s'",gThisServerIp);
+	g_dDatabase.Query(SQL_CheckForErrors, szQuery);
+	FormatEx(szQuery, sizeof(szQuery), "DELETE FROM `puguser` WHERE `serverip` = '%s'", gThisServerIp );
+	g_dDatabase.Query(SQL_CheckForErrors, szQuery);
+	
+	refreshzt();
+}
+
 void checkPlayerlive()
 {
 	int num = 0;
@@ -369,3 +394,4 @@ stock bool IsValidClient( client )
 	if ( IsFakeClient(client)) return false;
 	return true;
 }
+
