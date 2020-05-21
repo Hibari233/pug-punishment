@@ -29,7 +29,7 @@ public Plugin myinfo =
 	name = "PugPunish",
 	author = "neko",
 	description = "punishment plugin",
-	version = "0.14"
+	version = "0.2"
 };
 
 
