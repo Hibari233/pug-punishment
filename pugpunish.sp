@@ -9,20 +9,14 @@
 
 #define SERVER 0
 
-Handle sm_server_number;
-Handle sm_server_ip;
-
 Database g_dDatabase = null;
 
 char g_szAuth[MAXPLAYERS + 1][32];
-char serverip[64];
-char sip[MAXPLAYERS + 1][64];
+char sip[MAXPLAYERS + 1][32];
+char gThisServerIp[32];
 
-int MatchId[MAXPLAYERS + 1];
 int TimeDisconnet[MAXPLAYERS + 1];
-int servernumber;
 int Seconds[MAXPLAYERS + 1];
-int Sid[MAXPLAYERS + 1];
 int esptime[MAXPLAYERS + 1];
 int cbtime[MAXPLAYERS + 1];
 
@@ -31,19 +25,19 @@ bool IsMatchEnd;
 bool IsPlayer[MAXPLAYERS + 1];
 bool IsFristTime[MAXPLAYERS + 1];
 
+
+
 public void OnPluginStart()
 {
 	SQL_MakeConnection();
 	HookEvent("player_spawn", Event_PlayerSpawn);
-	sm_server_number=CreateConVar("sm_server_number", "-1", "ONE SERVER ONE NUMBER");
-	sm_server_ip= CreateConVar("sm_server_ip", "-1", "SERVER IP");
 	AutoExecConfig(true, "PugPunish");
+	int hostip = FindConVar("hostip").IntValue;
+	Format(gThisServerIp, sizeof(gThisServerIp), "%i.%i.%i.%i:%i", hostip >>> 24, hostip >> 16 & 0xFF, hostip >> 8 & 0xFF, hostip & 0xFF, FindConVar("hostport").IntValue);
 }
 
 public void OnMapStart()
 {
-	servernumber=GetConVarInt(sm_server_number);
-	GetConVarString(sm_server_ip, serverip, sizeof(serverip));
 	IsMatchEnd = true;
 	CheckServerIssue();
 }
@@ -51,7 +45,7 @@ public void OnMapStart()
 void CheckServerIssue()
 {
 	char szQuery[512];
-	FormatEx(szQuery, sizeof(szQuery), "SELECT `ip` FROM `serverissue` WHERE sid = '%s'",servernumber);
+	FormatEx(szQuery, sizeof(szQuery), "SELECT * FROM `serverissue` WHERE ip = '%s'",gThisServerIp);
 	g_dDatabase.Query(SQL_FetchServer_CB, szQuery);
 }
 
@@ -65,7 +59,7 @@ public void SQL_FetchServer_CB(Database db, DBResultSet results, const char[] er
 	else
 	{
 		char szQuery[512];
-		FormatEx(szQuery, sizeof(szQuery), "INSERT INTO `serverissue` (`sid`,`ip`,`isend`,`players`) VALUES ('%i','%s','1','-1')",servernumber,serverip);
+		FormatEx(szQuery, sizeof(szQuery), "INSERT INTO `serverissue` (`ip`,`isend`,`players`) VALUES ('%s','1','-1')",gThisServerIp);
 		g_dDatabase.Query(SQL_CheckForErrors, szQuery);
 	}
 }
@@ -75,12 +69,12 @@ public Action Event_PlayerSpawn(Event event, char[] name, bool dontBroadcast)
 	int iClient = GetClientOfUserId(event.GetInt("userid"));
 	if(!IsMatchEnd)
 	{
-		
 		CreateTimer(1.5,IsInGame,iClient);
 	}
 	else
 		IsPlayer[iClient] = false;
 }
+
 public Action IsInGame( Handle timer,int client)
 {
 	if(!IsPlayerAlive(client))
@@ -89,7 +83,9 @@ public Action IsInGame( Handle timer,int client)
 	if(IsFristTime[client])
 	{
 		IsFristTime[client]=!IsFristTime[client];
-		PrintToChat(client,"你已进入比赛!请不要随意放弃比赛!随意放弃比赛将受到惩罚！");
+		PrintToChat(client,"^\x07你已进入比赛!请不要在比赛未结束时随意离开! 随意放弃比赛将受到惩罚或者累计不良信用记录!\x01");
+		PrintToChat(client,"^\x07你已进入比赛!请不要在比赛未结束时随意离开! 随意放弃比赛将受到惩罚或者累计不良信用记录!\x01");
+		PrintToChat(client,"^\x07你已进入比赛!请不要在比赛未结束时随意离开! 随意放弃比赛将受到惩罚或者累计不良信用记录!\x01");
 	}
 }
 
@@ -112,15 +108,15 @@ public void OnClientPostAdminCheck(int client)
 		KickClient(client, "Verification problem, Please reconnect");
 		return;
 	}
+	
 	showmenu[client] = false;
-	MatchId[client] = -1;
 	TimeDisconnet[client] = -1;
 	Seconds[client] = 60;
 	IsPlayer[client] = false;
 	IsFristTime[client] = false;
 	
 	char szQuery[512];
-	FormatEx(szQuery, sizeof(szQuery), "SELECT `server`,`time` FROM `puguser` WHERE auth = '%s'",g_szAuth[client]);
+	FormatEx(szQuery, sizeof(szQuery), "SELECT `serverip`,`time` FROM `puguser` WHERE auth = '%s'",g_szAuth[client]);
 	g_dDatabase.Query(SQL_FetchUser_CB, szQuery, GetClientSerial(client));
 	
 	FormatEx(szQuery, sizeof(szQuery), "SELECT `esp`,`cb` FROM `puglog` WHERE auth = '%s'",g_szAuth[client]);
@@ -131,12 +127,12 @@ public void OnClientPostAdminCheck(int client)
 public void SQL_FetchUser_CB(Database db, DBResultSet results, const char[] error, any data)
 {
 	checkPlayerlive();
-	
 	int iClient = GetClientFromSerial(data);
+	
 	if (results.FetchRow())
 	{
-		Sid[iClient] = results.FetchInt(1);
-		TimeDisconnet[iClient] = results.FetchInt(2);
+		results.FetchString(0, sip[iClient], sizeof(sip));
+		TimeDisconnet[iClient] = results.FetchInt(1);
 		CheckIssue(iClient);
 	}
 	
@@ -170,7 +166,7 @@ void CheckIssue(int iClient)
 		g_dDatabase.Query(SQL_CheckForErrors, szQuery, GetClientSerial(iClient));
 		return;
 	}
-	if(Sid[iClient] == servernumber)
+	if(StrEqual(sip[iClient],gThisServerIp))
 	{
 		
 		FormatEx(szQuery, sizeof(szQuery), "DELETE FROM `puguser` WHERE `auth` = '%s'", g_szAuth[iClient]);
@@ -179,36 +175,30 @@ void CheckIssue(int iClient)
 		g_dDatabase.Query(SQL_CheckForErrors, szQuery);
 	}
 	
-	FormatEx(szQuery, sizeof(szQuery), "SELECT `players`,`isend` ,`ip`FROM  `serverissue` WHERE sid = '%i'",servernumber);
+	FormatEx(szQuery, sizeof(szQuery), "SELECT `players`,`isend`FROM  `serverissue` WHERE ip = '%s'",sip[iClient]);
 	g_dDatabase.Query(SQL_FetchMatch_CB, szQuery, GetClientSerial(iClient));
 }
 
 public void SQL_FetchMatch_CB(Database db, DBResultSet results, const char[] error, any data)
 {
-	char szQuery[512];
 	int iClient = GetClientFromSerial(data);
 	if (results.FetchRow())
 	{
 		int LivePlayer = results.FetchInt(1);
 		int end = results.FetchInt(2);
-		results.FetchString(0, sip[iClient], sizeof(sip));
-		
-		if(LivePlayer > 10 || end == 1)
-		{
-			BanPlayer(iClient, 6, "因为逃离比赛而冷却");
-			FormatEx(szQuery, sizeof(szQuery), "DELETE FROM `puguser` WHERE `auth` = '%s'", g_szAuth[iClient]);
-			g_dDatabase.Query(SQL_CheckForErrors, szQuery, GetClientSerial(iClient));
+		//results.FetchString(0, sip[iClient], sizeof(sip));
+		if( end == 1 || LivePlayer > 10)
 			return;
-		}
+		AskReconnectOrKick(iClient);
 	}
-	
-	AskReconnectOrKick(iClient);
+	else
+	LogError("can't find match");
 }
 
 public void PugSetup_OnLive()
 {
 	char szQuery[512];
-	FormatEx(szQuery, sizeof(szQuery), "UPDATE `serverissue` SET  `isend`= '0' WHERE `servernumber` = '%i'",servernumber);
+	FormatEx(szQuery, sizeof(szQuery), "UPDATE `serverissue` SET  `isend`= '0' WHERE `ip` = '%s'",gThisServerIp);
 	g_dDatabase.Query(SQL_CheckForErrors, szQuery);
 	IsMatchEnd=false;
 	
@@ -217,7 +207,7 @@ public void PugSetup_OnLive()
 public void PugSetup_OnForceEnd(int client)
 {
 	char szQuery[512];
-	FormatEx(szQuery, sizeof(szQuery), "UPDATE `serverissue` SET `isend` = '1' WHERE `servernumber` = '%i'",servernumber);
+	FormatEx(szQuery, sizeof(szQuery), "UPDATE `serverissue` SET `isend` = '1' WHERE `ip` = '%s'",gThisServerIp);
 	g_dDatabase.Query(SQL_CheckForErrors, szQuery);
 	IsMatchEnd=true;
 }
@@ -225,7 +215,7 @@ public void PugSetup_OnForceEnd(int client)
 public void PugSetup_OnMatchOver(bool hasDemo, const char[] demoFileName)
 {
 	char szQuery[512];
-	FormatEx(szQuery, sizeof(szQuery), "UPDATE `serverissue` SET `isend` = '1' WHERE `servernumber` = '%i'",servernumber);
+	FormatEx(szQuery, sizeof(szQuery), "UPDATE `serverissue` SET `isend` = '1' WHERE `ip` = '%s'",gThisServerIp);
 	g_dDatabase.Query(SQL_CheckForErrors, szQuery);
 	IsMatchEnd=true;
 }
@@ -292,7 +282,7 @@ public OnClientDisconnect(int client)
 		return;
 	PrintToChatAll("玩家%N在比赛中途离开游戏,在规定时间内若未返回将接受惩罚",client);
 	char szQuery[512];
-	FormatEx(szQuery, sizeof(szQuery), "INSERT INTO `puguser` (`auth`,`server`,`time`) VALUES ('%s','%i','%i')",g_szAuth[client],servernumber,GetTime());
+	FormatEx(szQuery, sizeof(szQuery), "INSERT INTO `puguser` (`auth`,`serverip`,`time`) VALUES ('%s','%s','%i')",g_szAuth[client],gThisServerIp,GetTime());
 	g_dDatabase.Query(SQL_CheckForErrors, szQuery);
 	
 	FormatEx(szQuery, sizeof(szQuery), "UPDATE `puglog` SET `esp` = '%i' WHERE `auth` = '%s'",esptime[client]+1,g_szAuth[client]);
@@ -346,7 +336,7 @@ void checkPlayerlive()
 	}
 	
 	char szQuery[512];
-	FormatEx(szQuery, sizeof(szQuery), "UPDATE `serverissue` SET `players` = '%i' WHERE `servernumber` = '%i'",servernumber,num);
+	FormatEx(szQuery, sizeof(szQuery), "UPDATE `serverissue` SET `players` = '%i' WHERE `ip` = '%s'",num,gThisServerIp);
 	g_dDatabase.Query(SQL_CheckForErrors, szQuery);
 }
 
