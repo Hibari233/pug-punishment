@@ -1,6 +1,5 @@
 #include <sourcemod>
-#include<pugsetup>
-#include<redirect_core>
+#include <pugsetup>
 
 #tryinclude <sourcebanspp>
 #if !defined _sourcebanspp_included
