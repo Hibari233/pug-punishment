@@ -119,7 +119,7 @@ public void OnClientPostAdminCheck(int client)
 	TimeDisconnet[client] = -1;
 	Seconds[client] = 60;
 	IsPlayer[client] = false;
-	IsFristTime[client] = false;
+	IsFristTime[client] = true;
 	
 	char szQuery[512];
 	FormatEx(szQuery, sizeof(szQuery), "SELECT `serverip`,`time` FROM `puguser` WHERE auth = '%s'",g_szAuth[client]);
