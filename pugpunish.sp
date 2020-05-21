@@ -24,6 +24,13 @@ bool IsMatchEnd;
 bool IsPlayer[MAXPLAYERS + 1];
 bool IsFristTime[MAXPLAYERS + 1];
 
+public Plugin myinfo =
+{
+	name = "PugPunish",
+	author = "neko",
+	description = "punishment plugin",
+	version = "0.13"
+};
 
 
 public void OnPluginStart()
