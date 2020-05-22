@@ -1,8 +1,7 @@
 #include <sourcemod>
 #include <pugsetup>
 #include <redirect_core>
-
-#define SERVER 0
+#include <sourcebanspp>
 
 Database g_dDatabase = null;
 
@@ -19,6 +18,7 @@ bool showmenu[MAXPLAYERS + 1];
 bool IsMatchEnd;
 bool IsPlayer[MAXPLAYERS + 1];
 bool IsFristTime[MAXPLAYERS + 1];
+bool IsEsp[MAXPLAYERS + 1];
 
 public Plugin myinfo =
 {
@@ -33,14 +33,17 @@ public void OnPluginStart()
 {
 	SQL_MakeConnection();
 	HookEvent("player_spawn", Event_PlayerSpawn);
+	HookEvent("cs_win_panel_match", Event_MatchEnd)
 	int hostip = FindConVar("hostip").IntValue;
 	Format(gThisServerIp, sizeof(gThisServerIp), "%i.%i.%i.%i:%i", hostip >>> 24, hostip >> 16 & 0xFF, hostip >> 8 & 0xFF, hostip & 0xFF, FindConVar("hostport").IntValue);
+	
 }
 
 public void OnMapStart()
 {
 	IsMatchEnd = true;
 	CheckServerIssue();
+	CreateTimer(1.00, cooldown,_,TIMER_REPEAT | TIMER_FLAG_NO_MAPCHANGE);
 }
 
 void CheckServerIssue()
@@ -70,7 +73,7 @@ public Action Event_PlayerSpawn(Event event, char[] name, bool dontBroadcast)
 	int iClient = GetClientOfUserId(event.GetInt("userid"));
 	
 	CreateTimer(1.5,IsInGame,iClient);
-	if(!IsMatchEnd)
+	if(!IsMatchEnd && !IsEsp[iClient])
 	{
 		CreateTimer(1.5,IsInGame,iClient);
 		checkPlayerlive();
@@ -123,6 +126,7 @@ public void OnClientPostAdminCheck(int client)
 	Seconds[client] = 60;
 	IsPlayer[client] = false;
 	IsFristTime[client] = true;
+	IsEsp[client]=false;
 	
 	char szQuery[512];
 	FormatEx(szQuery, sizeof(szQuery), "SELECT * FROM `puguser` WHERE auth = '%s'",g_szAuth[client]);
@@ -172,7 +176,8 @@ void CheckIssue(int iClient)
 	int now=GetTime();
 	if( now - TimeDisconnet[iClient] > 600)
 	{
-		BanClient(iClient, 30, BANFLAG_AUTO,"因为逃离比赛而冷却","因为逃离比赛而冷却");
+		SBPP_BanPlayer(0, iClient, 30, "因为逃离比赛而冷却");
+		//BanClient(iClient, 30, BANFLAG_AUTO,"因为逃离比赛而冷却","因为逃离比赛而冷却");
 		FormatEx(szQuery, sizeof(szQuery), "DELETE FROM `puguser` WHERE `auth` = '%s'", g_szAuth[iClient]);
 		g_dDatabase.Query(SQL_CheckForErrors, szQuery, GetClientSerial(iClient));
 		return;
@@ -199,11 +204,12 @@ public void SQL_FetchMatch_CB(Database db, DBResultSet results, const char[] err
 	{
 		int LivePlayer = results.FetchInt(1);
 		int end = results.FetchInt(2);
-		
 		if( end == 1)
 			return;
 		if(LivePlayer >= 10)
-			return
+			return;
+		IsEsp[iClient]=true;
+		Seconds[iClient] =61;
 		AskReconnectOrKick(iClient);
 	}
 	else
@@ -262,12 +268,6 @@ refreshzt()
 
 AskReconnectOrKick(int client)
 {
-	if(showmenu[client])
-	{
-		CreateTimer(1.00, cooldown,client,TIMER_REPEAT | TIMER_FLAG_NO_MAPCHANGE);
-		showmenu[client]=!showmenu[client];
-	}
-	
 	int sec=Seconds[client]%60;
 	Menu menu = new Menu(Handler_mianMenu);
 	menu.SetTitle("选择时间[00:%i]\n玩家须知:",sec);
@@ -283,14 +283,18 @@ AskReconnectOrKick(int client)
 
 public Action cooldown(Handle timer,int client)
 {
+	if(!IsEsp[client])
+		return Plugin_Continue;
+		
 	AskReconnectOrKick(client);
 	Seconds[client]--;
-	if(Seconds[client]<=0){
+	
+	if(Seconds[client] < 0){
 		char szQuery[512];
 		KickClient(client,"请先完成之前的比赛");
 		FormatEx(szQuery, sizeof(szQuery), "DELETE FROM `puguser` WHERE `auth` = '%s'", g_szAuth[client]);
 		g_dDatabase.Query(SQL_CheckForErrors, szQuery, GetClientSerial(client));
-		return Plugin_Stop;
+		return Plugin_Continue;
 	}
 	return Plugin_Continue;
 }
@@ -308,10 +312,12 @@ public int Handler_mianMenu(Menu menu, MenuAction action, int client,int itemNum
 			}
 			case 3:
 			{
+				SBPP_BanPlayer(0, client, 30, "因为逃离比赛而冷却");
+				//BanClient(client, 30, BANFLAG_AUTO,"因为逃离比赛而冷却","因为逃离比赛而冷却");
 				char szQuery[512];
-				BanClient(client, 30, BANFLAG_AUTO,"因为逃离比赛而冷却","因为逃离比赛而冷却");
 				FormatEx(szQuery, sizeof(szQuery), "DELETE FROM `puguser` WHERE `auth` = '%s'", g_szAuth[client]);
 				g_dDatabase.Query(SQL_CheckForErrors, szQuery, GetClientSerial(client));
+				
 			}
 		}
 	}
@@ -322,6 +328,8 @@ public OnClientDisconnect(int client)
 	checkPlayerlive();
 	if(!IsPlayer[client])
 		return;
+	if(IsEsp[client])
+		return;
 	PrintToChatAll("玩家\x06%N\x01 \x03在比赛中途离开游戏, 在规定时间内若未返回将接受惩罚",client);
 	char szQuery[512];
 	FormatEx(szQuery, sizeof(szQuery), "INSERT INTO `puguser` (`auth`,`serverip`,`time`) VALUES ('%s','%s','%i')",g_szAuth[client],gThisServerIp,GetTime());
@@ -329,6 +337,12 @@ public OnClientDisconnect(int client)
 	
 	FormatEx(szQuery, sizeof(szQuery), "UPDATE `puglog` SET `esp` = '%i' WHERE `auth` = '%s'",esptime[client]+1,g_szAuth[client]);
 	g_dDatabase.Query(SQL_CheckForErrors, szQuery);
+	
+	showmenu[client] = true;
+	TimeDisconnet[client] = -1;
+	Seconds[client] =-1;
+	IsPlayer[client] = false;
+	IsFristTime[client] = true;
 }
 
 public void SQL_CheckForErrors(Database db, DBResultSet results, const char[] error, any data)
@@ -355,7 +369,7 @@ stock void PrintToAdmins(const char[] msg, any ...)
 	}
 }
 
-public OnMapEnd()
+public void Event_MatchEnd(Event event, const char[] name, bool dontBroadcast)
 {
 	if(!IsMatchEnd)
 		IsMatchEnd=!IsMatchEnd;
@@ -367,7 +381,6 @@ public OnMapEnd()
 	g_dDatabase.Query(SQL_CheckForErrors, szQuery);
 	FormatEx(szQuery, sizeof(szQuery), "DELETE FROM `puguser` WHERE `serverip` = '%s'", gThisServerIp );
 	g_dDatabase.Query(SQL_CheckForErrors, szQuery);
-	
 	refreshzt();
 }
 
