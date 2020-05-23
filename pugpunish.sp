@@ -390,13 +390,20 @@ void checkPlayerlive()
 	
 	for(int i = 1; i <= MaxClients; i++)
 	{
-		if( IsValidClient(i) && GetClientTeam(i) != 1)
+		if( Inteam(i))
 			num++;
 	}
 	
 	char szQuery[512];
-	FormatEx(szQuery, sizeof(szQuery), "UPDATE `serverissue` SET `players` = '%i' WHERE `ip` = '%s'",num-1,gThisServerIp);
+	FormatEx(szQuery, sizeof(szQuery), "UPDATE `serverissue` SET `players` = '%i' WHERE `ip` = '%s'",num,gThisServerIp);
 	g_dDatabase.Query(SQL_CheckForErrors, szQuery);
+}
+
+stock bool Inteam( int client)
+{
+	if(!IsValidClient(client)) return false;
+	if(GetClientTeam(client) < 2) return false;
+	return true;
 }
 
 stock bool IsValidClient( client )
