@@ -326,9 +326,7 @@ public int Handler_mianMenu(Menu menu, MenuAction action, int client,int itemNum
 public OnClientDisconnect(int client)
 {
 	checkPlayerlive();
-	if(!IsPlayer[client])
-		return;
-	if(IsEsp[client])
+	if( !IsPlayer[client] || IsEsp[client] || IsMatchEnd )
 		return;
 	PrintToChatAll("玩家\x06%N\x01 \x03在比赛中途离开游戏, 在规定时间内若未返回将接受惩罚",client);
 	char szQuery[512];
