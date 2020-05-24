@@ -135,6 +135,34 @@ public void OnClientPostAdminCheck(int client)
 	FormatEx(szQuery, sizeof(szQuery), "SELECT * FROM `puglog` WHERE auth = '%s'",g_szAuth[client]);
 	g_dDatabase.Query(SQL_FetchUserLog_CB, szQuery, GetClientSerial(client));
 	
+	if(IsMatchEnd)
+		CreateTimer(60.0, AskReady,client);
+}
+
+public Action AskReady(Handle timer,int client)
+{
+	if(PugSetup_ReadyPlayer(client))
+		return;
+	PrintToChat(client,"*\x04请在之后的\x07一分钟内在聊天栏输入\x03.r\x05进行准备或服务器将自动将你踢出.");
+	CreateTimer(60.0, AskReady2,client);
+}
+
+public Action AskReady2(Handle timer,int client)
+{
+	if(PugSetup_ReadyPlayer(client))
+		return;
+	else
+	KickClient(client,"请在游戏中及时准备");
+}
+
+public void PugSetup_OnUnready(int client)
+{
+	// 防止玩家在1分钟之后输入取消准备恶意逃脱
+	if(IsMatchEnd)
+	{
+		PrintToChat(client,"*\x04请在之后的\x07一分钟内在聊天栏输入\x03.r\x05进行准备或服务器将自动将你踢出.");
+		CreateTimer(60.0, AskReady2,client);
+	}
 }
 
 public void SQL_FetchUser_CB(Database db, DBResultSet results, const char[] error, any data)
