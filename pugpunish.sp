@@ -146,6 +146,7 @@ public void OnClientPostAdminCheck(int client)
 	
 	FormatEx(szQuery, sizeof(szQuery), "SELECT * FROM `puglog` WHERE auth = '%s'",g_szAuth[client]);
 	g_dDatabase.Query(SQL_FetchUserLog_CB, szQuery, GetClientSerial(client));
+	
 	g_ClientReadyTime[client] = GetTime();
 }
 
@@ -484,7 +485,7 @@ public void PugSetup_OnReadyToStartCheck(int readyPlayers, int totalPlayers)
 	for (int i = 1; i <= MaxClients; i++) 
 	{
 		int dt = GetTime() - g_ClientReadyTime[i];
-		if ( IsPlayer(i) && !PugSetup_IsReady(i) && dt > 25) 
+		if ( IsPlayer(i) && !PugSetup_IsReady(i) && dt > 60) 
 		{
 			KickClient(i,"请在游戏中及时准备");
 		}
