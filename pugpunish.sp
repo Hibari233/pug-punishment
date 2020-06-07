@@ -2,6 +2,8 @@
 #include <pugsetup>
 #include <redirect_core>
 #include <sourcebanspp>
+#include "pugsetup/util.sp"
+
 
 Database g_dDatabase = null;
 
@@ -13,12 +15,14 @@ int TimeDisconnet[MAXPLAYERS + 1];
 int Seconds[MAXPLAYERS + 1];
 int esptime[MAXPLAYERS + 1];
 int cbtime[MAXPLAYERS + 1];
+int g_ClientReadyTime[MAXPLAYERS +1];
 
 bool showmenu[MAXPLAYERS + 1];
 bool IsMatchEnd;
-bool IsPlayer[MAXPLAYERS + 1];
+bool IsPlayerCheck[MAXPLAYERS + 1];
 bool IsFristTime[MAXPLAYERS + 1];
 bool IsEsp[MAXPLAYERS + 1];
+//bool NeedKick;
 
 public Plugin myinfo =
 {
@@ -37,11 +41,18 @@ public void OnPluginStart()
 	int hostip = FindConVar("hostip").IntValue;
 	Format(gThisServerIp, sizeof(gThisServerIp), "%i.%i.%i.%i:%i", hostip >>> 24, hostip >> 16 & 0xFF, hostip >> 8 & 0xFF, hostip & 0xFF, FindConVar("hostport").IntValue);
 	
+	for (int i = 1; i <= MaxClients; i++)
+	{
+		if (IsClientInGame(i))
+			OnClientPostAdminCheck(i);
+	}
 }
 
 public void OnMapStart()
 {
 	IsMatchEnd = true;
+	//NeedKick = true;
+	
 	CheckServerIssue();
 	CreateTimer(1.00, cooldown,_,TIMER_REPEAT | TIMER_FLAG_NO_MAPCHANGE);
 }
@@ -79,7 +90,7 @@ public Action Event_PlayerSpawn(Event event, char[] name, bool dontBroadcast)
 		checkPlayerlive();
 	}
 	else
-		IsPlayer[iClient] = false;
+		IsPlayerCheck[iClient] = false;
 	
 }
 
@@ -89,7 +100,7 @@ public Action IsInGame( Handle timer,int client)
 		return;
 	if(!IsPlayerAlive(client))
 		return;
-	IsPlayer[client] = true;
+	IsPlayerCheck[client] = true;
 	if(IsFristTime[client])
 	{
 		IsFristTime[client]=!IsFristTime[client];
@@ -121,10 +132,11 @@ public void OnClientPostAdminCheck(int client)
 	}
 	if(StrEqual(g_szAuth[client],"") || StrEqual(g_szAuth[client],"BOT"))
 		return;
+	
 	showmenu[client] = true;
 	TimeDisconnet[client] = -1;
 	Seconds[client] = 60;
-	IsPlayer[client] = false;
+	IsPlayerCheck[client] = false;
 	IsFristTime[client] = true;
 	IsEsp[client]=false;
 	
@@ -134,14 +146,13 @@ public void OnClientPostAdminCheck(int client)
 	
 	FormatEx(szQuery, sizeof(szQuery), "SELECT * FROM `puglog` WHERE auth = '%s'",g_szAuth[client]);
 	g_dDatabase.Query(SQL_FetchUserLog_CB, szQuery, GetClientSerial(client));
-	
-	if(IsMatchEnd)
-		CreateTimer(60.0, AskReady,client);
+	g_ClientReadyTime[client] = GetTime();
 }
 
+/**
 public Action AskReady(Handle timer,int client)
 {
-	if(PugSetup_ReadyPlayer(client))
+	if(PugSetup_ReadyPlayer(client) || !NeedKick)
 		return;
 	PrintToChat(client,"*\x04请在之后的\x07一分钟内在聊天栏输入\x03.r\x05进行准备或服务器将自动将你踢出.");
 	CreateTimer(60.0, AskReady2,client);
@@ -149,10 +160,10 @@ public Action AskReady(Handle timer,int client)
 
 public Action AskReady2(Handle timer,int client)
 {
-	if(PugSetup_ReadyPlayer(client))
+	if(PugSetup_ReadyPlayer(client) || !NeedKick)
 		return;
 	else
-	KickClient(client,"请在游戏中及时准备");
+		KickClient(client,"请在游戏中及时准备");
 }
 
 public void PugSetup_OnUnready(int client)
@@ -164,6 +175,7 @@ public void PugSetup_OnUnready(int client)
 		CreateTimer(60.0, AskReady2,client);
 	}
 }
+**/
 
 public void SQL_FetchUser_CB(Database db, DBResultSet results, const char[] error, any data)
 {
@@ -241,7 +253,7 @@ public void SQL_FetchMatch_CB(Database db, DBResultSet results, const char[] err
 		AskReconnectOrKick(iClient);
 	}
 	else
-	LogError("can't find match");
+		LogError("can't find match");
 }
 
 public void PugSetup_OnLive()
@@ -252,6 +264,7 @@ public void PugSetup_OnLive()
 	char szQuery[512];
 	FormatEx(szQuery, sizeof(szQuery), "UPDATE `serverissue` SET  `isend`= '0' WHERE `ip` = '%s'",gThisServerIp);
 	g_dDatabase.Query(SQL_CheckForErrors, szQuery);
+	
 	checkPlayerlive();
 }
 
@@ -289,7 +302,7 @@ refreshzt()
 {
 	for(int i = 1; i <= MaxClients; i++)
 	{
-		if( IsValidClient(i))
+		if( IsValidclient(i))
 			IsFristTime[i] = true;
 	}
 }
@@ -297,15 +310,24 @@ refreshzt()
 AskReconnectOrKick(int client)
 {
 	int sec=Seconds[client]%60;
-	Menu menu = new Menu(Handler_mianMenu);
-	menu.SetTitle("选择时间[00:%i]\n玩家须知:",sec);
-	menu.AddItem("0","请不要抛弃你的队友",ITEMDRAW_DISABLED);
-	menu.AddItem("1","请不要在比赛未结束时离开游戏",ITEMDRAW_DISABLED);
 	char buffer[128];
+
+	Menu menu = new Menu(Handler_mianMenu);
+	
+	menu.SetTitle("选择时间[00:%i]\n玩家须知:",sec);
+	
+	menu.AddItem("0","请不要抛弃你的队友",ITEMDRAW_DISABLED);
+	
+	menu.AddItem("1","请不要在比赛未结束时离开游戏",ITEMDRAW_DISABLED);
+	
 	Format(buffer,128,"返回之前比赛\n[IP:%s]",sip[client]);
+	
 	menu.AddItem("2",buffer);
+	
 	menu.AddItem("3","我选择放弃比赛接受冷却时间");
+	
 	menu.Display(client, MENU_TIME_FOREVER);
+	
 	menu.ExitButton = false;
 }
 
@@ -354,8 +376,12 @@ public int Handler_mianMenu(Menu menu, MenuAction action, int client,int itemNum
 public OnClientDisconnect(int client)
 {
 	checkPlayerlive();
-	if( !IsPlayer[client] || IsEsp[client] || IsMatchEnd )
+	if( !IsPlayerCheck[client] || IsEsp[client] || IsMatchEnd )
 		return;
+	
+	if(StrEqual(g_szAuth[client],"") || StrEqual(g_szAuth[client],"BOT"))
+		return;
+	
 	PrintToChatAll("玩家\x06%N\x01 \x03在比赛中途离开游戏, 在规定时间内若未返回将接受惩罚",client);
 	char szQuery[512];
 	FormatEx(szQuery, sizeof(szQuery), "INSERT INTO `puguser` (`auth`,`serverip`,`time`) VALUES ('%s','%s','%i')",g_szAuth[client],gThisServerIp,GetTime());
@@ -367,7 +393,7 @@ public OnClientDisconnect(int client)
 	showmenu[client] = true;
 	TimeDisconnet[client] = -1;
 	Seconds[client] =-1;
-	IsPlayer[client] = false;
+	IsPlayerCheck[client] = false;
 	IsFristTime[client] = true;
 }
 
@@ -407,6 +433,9 @@ public void Event_MatchEnd(Event event, const char[] name, bool dontBroadcast)
 	g_dDatabase.Query(SQL_CheckForErrors, szQuery);
 	FormatEx(szQuery, sizeof(szQuery), "DELETE FROM `puguser` WHERE `serverip` = '%s'", gThisServerIp );
 	g_dDatabase.Query(SQL_CheckForErrors, szQuery);
+	//delete something ohhh we dont need
+	FormatEx(szQuery, sizeof(szQuery), "DELETE FROM `puguser` WHERE `auth` = ''");
+	g_dDatabase.Query(SQL_CheckForErrors, szQuery);
 	refreshzt();
 }
 
@@ -427,12 +456,12 @@ void checkPlayerlive()
 
 stock bool Inteam( int client)
 {
-	if(!IsValidClient(client)) return false;
+	if(!IsValidclient(client)) return false;
 	if(GetClientTeam(client) < 2) return false;
 	return true;
 }
 
-stock bool IsValidClient( client )
+stock bool IsValidclient( client )
 {
 	if ( client < 1 || client > MaxClients ) return false;
 	if ( !IsClientConnected( client )) return false;
@@ -440,4 +469,24 @@ stock bool IsValidClient( client )
 	if ( IsFakeClient(client)) return false;
 	return true;
 }
+//kick........
 
+public void PugSetup_OnSetup() {
+  for (int i = 1; i <= MaxClients; i++) {
+    g_ClientReadyTime[i] = GetTime();
+  }
+}
+
+
+public void PugSetup_OnReadyToStartCheck(int readyPlayers, int totalPlayers) 
+{
+  
+	for (int i = 1; i <= MaxClients; i++) 
+	{
+		int dt = GetTime() - g_ClientReadyTime[i];
+		if ( IsPlayer(i) && !PugSetup_IsReady(i) && dt > 25) 
+		{
+			KickClient(i,"请在游戏中及时准备");
+		}
+	}
+}
