@@ -43,7 +43,7 @@ public void OnPluginStart()
 	
 	for (int i = 1; i <= MaxClients; i++)
 	{
-		if (IsClientInGame(i))
+		if (IsClientInGame(i)&&IsValidclient(i))
 			OnClientPostAdminCheck(i);
 	}
 }
@@ -82,7 +82,6 @@ public void SQL_FetchServer_CB(Database db, DBResultSet results, const char[] er
 public Action Event_PlayerSpawn(Event event, char[] name, bool dontBroadcast)
 {
 	int iClient = GetClientOfUserId(event.GetInt("userid"));
-	
 	CreateTimer(1.5,IsInGame,iClient);
 	if(!IsMatchEnd && !IsEsp[iClient])
 	{
@@ -334,6 +333,8 @@ AskReconnectOrKick(int client)
 
 public Action cooldown(Handle timer,int client)
 {
+	if(!IsValidclient(client))
+		return Plugin_Handled;
 	if(!IsEsp[client])
 		return Plugin_Continue;
 		
