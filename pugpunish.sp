@@ -22,6 +22,8 @@ bool IsMatchEnd;
 bool IsPlayerCheck[MAXPLAYERS + 1];
 bool IsFristTime[MAXPLAYERS + 1];
 bool IsEsp[MAXPLAYERS + 1];
+bool Announce[MAXPLAYERS + 1];
+
 //bool NeedKick;
 
 public Plugin myinfo =
@@ -90,7 +92,13 @@ public Action Event_PlayerSpawn(Event event, char[] name, bool dontBroadcast)
 	}
 	else
 		IsPlayerCheck[iClient] = false;
-	
+	if(!Announce[iClient])
+	{
+		PrintToChat(iClient,"请在游戏聊天栏中输入\x04.r\x01来进行准备.");
+		PrintToChat(iClient,"请在游戏聊天栏中输入\x04.r\x01来进行准备.");
+		PrintToChat(iClient,"请在游戏聊天栏中输入\x04.r\x01来进行准备.");
+		Announce[iClient] = true;
+	}
 }
 
 public Action IsInGame( Handle timer,int client)
@@ -138,6 +146,7 @@ public void OnClientPostAdminCheck(int client)
 	IsPlayerCheck[client] = false;
 	IsFristTime[client] = true;
 	IsEsp[client]=false;
+	Announce[client] = false;
 	
 	char szQuery[512];
 	FormatEx(szQuery, sizeof(szQuery), "SELECT * FROM `puguser` WHERE auth = '%s'",g_szAuth[client]);
@@ -397,6 +406,7 @@ public OnClientDisconnect(int client)
 	Seconds[client] =-1;
 	IsPlayerCheck[client] = false;
 	IsFristTime[client] = true;
+	Announce[client] = false;
 }
 
 public void SQL_CheckForErrors(Database db, DBResultSet results, const char[] error, any data)
@@ -488,7 +498,7 @@ public void PugSetup_OnReadyToStartCheck(int readyPlayers, int totalPlayers)
 		int dt = GetTime() - g_ClientReadyTime[i];
 		if ( IsPlayer(i) && !PugSetup_IsReady(i) && dt > 60) 
 		{
-			KickClient(i,"请在游戏中及时准备");
+			KickClient(i,"请在游戏中及时准备\n准备方法:\n聊天栏输入.r");
 		}
 	}
 }
