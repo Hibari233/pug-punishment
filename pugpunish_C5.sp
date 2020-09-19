@@ -1,6 +1,5 @@
 #include <sourcemod>
 #include <c5_pug>
-#include <redirect_core>
 #include <sourcebanspp>
 #include "c5/util.sp"
 
@@ -105,7 +104,7 @@ public Action IsInGame( Handle timer,int client)
 {
 	if(IsMatchEnd)
 		return;
-	if(!IsPlayerAlive(client))
+	if(!IsValidclient(client) || !IsPlayerAlive(client))
 		return;
 	IsPlayerCheck[client] = true;
 	if(IsFristTime[client])
@@ -304,7 +303,7 @@ AskReconnectOrKick(int client)
 	
 	menu.AddItem("1","请不要在比赛未结束时离开游戏",ITEMDRAW_DISABLED);
 	
-	Format(buffer,128,"返回之前比赛\n[IP:%s]",sip[client]);
+	Format(buffer,128,"返回之前比赛\n[IP:%s]",sip[client],ITEMDRAW_DISABLED);
 	
 	menu.AddItem("2",buffer);
 	
@@ -344,7 +343,7 @@ public int Handler_mianMenu(Menu menu, MenuAction action, int client,int itemNum
 		{
 			case 2: 
 			{
-				RedirectClientOnServerEx(client, sip[client]);
+				//RedirectClientOnServerEx(client, sip[client]);
 			}
 			case 3:
 			{
